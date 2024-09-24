@@ -8,11 +8,11 @@ func RegisterRoutes(server *gin.Engine) {
 	// ListBuckets
 	server.GET("/bucket", getBuckets)
 	// BucketExists
-	server.GET("/bucket/:bucketName")
+	server.GET("/bucket/:bucketName", getBucketExists)
 	// CreateBucket
-	server.POST("/bucket")
+	server.POST("/bucket", postCreateBucket)
 	// DeleteBucket
-	server.DELETE("/bucket/:bucketName")
+	server.DELETE("/bucket/:bucketName", deleteBucket)
 
 	// object
 
