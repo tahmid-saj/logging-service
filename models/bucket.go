@@ -4,6 +4,7 @@ import (
 	"logging-service/bucket"
 	"logging-service/conf"
 	"os"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 )
@@ -11,6 +12,16 @@ import (
 type Bucket struct {
 	BucketName   string `json:"bucketName"`
 	CreationDate string `json:"creationDate"`
+}
+
+type BucketInput struct {
+	BucketName string `json:"bucketName"`
+	Region string `json:"region"`
+}
+
+type Response struct {
+	Ok bool `json:"ok"`
+	Response interface{} `json:"response"`
 }
 
 func InitS3() *s3.Client {
@@ -23,12 +34,15 @@ func InitS3() *s3.Client {
 }
 
 // bucket
-func GetListBuckets() ([]*Bucket, error) {
+func GetListBuckets() (*Response, error) {
 	s3Client := InitS3()
 
 	buckets, err := bucket.ListBuckets(s3Client)
 	if err != nil {
-		return nil, err
+		return &Response{
+			Ok: false,
+			Response: nil,
+		}, err
 	}
 
 	var resBuckets []*Bucket
@@ -39,5 +53,52 @@ func GetListBuckets() ([]*Bucket, error) {
 		})
 	}
 
-	return resBuckets, nil
+	return &Response{
+		Ok: true,
+		Response: resBuckets,
+	}, nil
+}
+
+func GetBucketExists(bucketName string) (*Response, error) {
+	s3Client := InitS3()
+
+	bucketExists, err := bucket.BucketExists(s3Client, bucketName)
+	if err != nil {
+		return &Response{Ok: false, Response: nil}, err
+	}
+
+	return &Response{Ok: true, Response: bucketExists}, nil
+}
+
+func PostCreateBucket(bucketName string, region string) (*Response, error) {
+	s3Client := InitS3()
+
+	err := bucket.CreateBucket(s3Client, bucketName, region)
+	if err != nil {
+		return &Response{
+			Ok: false,
+			Response: nil,
+		}, err
+	}
+
+	bucket := &Bucket{
+		BucketName: bucketName,
+		CreationDate: time.Now().String(),
+	}
+
+	return &Response{
+		Ok: true,
+		Response: bucket,
+	}, nil
+}
+
+func DeleteBucket(bucketName string) (*Response, error) {
+	s3Client := InitS3()
+
+	err := bucket.DeleteBucket(s3Client, bucketName)
+	if err != nil {
+		return &Response{Ok: false, Response: false}, err
+	}
+
+	return &Response{Ok: true, Response: true}, nil
 }
