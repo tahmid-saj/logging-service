@@ -6,7 +6,7 @@ func RegisterRoutes(server *gin.Engine) {
 	// bucket
 
 	// ListBuckets
-	server.GET("/bucket")
+	server.GET("/bucket", getBuckets)
 	// BucketExists
 	server.GET("/bucket/:bucketName")
 	// CreateBucket
@@ -21,7 +21,7 @@ func RegisterRoutes(server *gin.Engine) {
 	// DownloadObject
 	server.POST("/object/download")
 	// ListObjectVersions
-	server.GET("/object/:bucketName")
+	server.GET("/object/:bucketName/versions")
 	// DeleteObjects
 	server.POST("/objects")
 	// DeleteObject
