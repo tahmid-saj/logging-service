@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"logging-service/utils"
 	"os"
+	"path/filepath"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
@@ -45,7 +47,7 @@ func DownloadObject(s3Client *s3.Client, bucketName string, objectKey string, fi
 	}
 	defer result.Body.Close()
 
-	file, err := os.Create(fileName)
+	file, err := os.Create(filepath.Join(utils.DOWNLOADOBJECTFILEPATH, filepath.Base(fileName)))
 	if err != nil {
 		log.Printf("Couldn't create file %v. %v.\n", fileName, err)
 		return err
@@ -177,7 +179,7 @@ func DeleteObject(s3Client *s3.Client, bucketName string, objectKey string, vers
 }
 
 func UploadObject(s3Client *s3.Client, bucketName string, objectKey string, fileName string) error {
-	file, err := os.Open(fileName)
+	file, err := os.Open(filepath.Join(utils.UPLOADOBJECTFILEPATH, filepath.Base(fileName)))
 	if err != nil {
 		log.Printf("Couldn't open file %v to upload. %v.\n", fileName, err)
 	} else {

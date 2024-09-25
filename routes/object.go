@@ -103,6 +103,15 @@ func deleteObject(context *gin.Context) {
 		context.JSON(http.StatusInternalServerError, gin.H{"message": "could not delete object"})
 		return
 	}
+	
+	switch resDeleteObject.Response.(type) {
+	case bool:
+		resDelete := resDeleteObject.Response
+		if resDelete == false {
+			context.JSON(http.StatusInternalServerError, gin.H{"message": "could not delete object"})
+			return
+		}
+	}
 
 	context.JSON(http.StatusOK, gin.H{"message": "object deleted", "objectResponse": resDeleteObject})
 }
