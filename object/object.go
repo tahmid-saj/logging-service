@@ -13,7 +13,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 )
 
-func ListObjects(s3Client s3.Client, bucketName string) ([]types.Object, error) {
+func ListObjects(s3Client *s3.Client, bucketName string) ([]types.Object, error) {
 	result, err := s3Client.ListObjectsV2(context.TODO(), &s3.ListObjectsV2Input{
 		Bucket: aws.String(bucketName),
 	})
@@ -34,7 +34,7 @@ func PrintObjects(objects []types.Object) {
 	}
 }
 
-func DownloadObject(s3Client s3.Client, bucketName string, objectKey string, fileName string) error {
+func DownloadObject(s3Client *s3.Client, bucketName string, objectKey string, fileName string) error {
 	result, err := s3Client.GetObject(context.TODO(), &s3.GetObjectInput{
 		Bucket: aws.String(bucketName),
 		Key: aws.String(objectKey),
