@@ -21,7 +21,7 @@ type ObjectDownloadInput struct {
 }
 
 type ObjectCreateInput struct {
-	ObjectKey string `json:"objectKet"`
+	ObjectKey string `json:"objectKey"`
 	FileName string `json:"fileName"`
 }
 
@@ -81,7 +81,7 @@ func GetListObjectVersions(bucketName string) (*Response, error) {
 		}, err
 	}
 
-	var resObjectVersions map[string][]string
+	resObjectVersions := make(map[string][]string)
 	for _, objectVersion := range objectVersions {
 		resObjectVersions[*objectVersion.Key] = append(resObjectVersions[*objectVersion.Key], *objectVersion.VersionId)
 	}
