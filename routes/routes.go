@@ -19,13 +19,15 @@ func RegisterRoutes(server *gin.Engine) {
 	// ListObjects
 	server.GET("/object/:bucketName")
 	// DownloadObject
-	server.POST("/object/download")
+	server.POST("/object/:bucketName/:filename/download")
 	// ListObjectVersions
 	server.GET("/object/:bucketName/versions")
-	// DeleteObjects
-	server.POST("/objects")
-	// DeleteObject
+	// UploadObject
 	server.POST("/object")
+	// DeleteObjects
+	server.POST("/objects/:bucketName/delete")
+	// DeleteObject
+	server.DELETE("/object/:bucketName/delete")
 
 	// dashboard
 
