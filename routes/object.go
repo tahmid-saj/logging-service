@@ -70,13 +70,39 @@ func postUploadObject(context *gin.Context) {
 		return
 	}
 
-	context.JSON(http.StatusCreated, gin.H{"message": "object uploaded", "objectUploadResponse": resUploadObject})
+	context.JSON(http.StatusCreated, gin.H{"message": "object uploaded", "objectResponse": resUploadObject})
 }
 
-func deleteObjects() {
+func deleteObjects(context *gin.Context) {
+	bucketName := context.Param("bucketName")
 
+	var objectVersionsInput models.ObjectVersionInput
+
+	err := context.ShouldBindJSON(&objectVersionsInput)
+	if err != nil {
+		context.JSON(http.StatusBadRequest, gin.H{"message": "could not parse request body"})
+		return
+	}
+
+	resDeleteObjects, err := models.DeleteObjects(bucketName, objectVersionsInput)
+	if err != nil {
+		context.JSON(http.StatusInternalServerError, gin.H{"message": "could not delete objects"})
+		return
+	}
+
+	context.JSON(http.StatusOK, gin.H{"message": "objects deleted", "objectResponse": resDeleteObjects})
 }
 
-func deleteObject() {
+func deleteObject(context *gin.Context) {
+	bucketName := context.Param("bucketName")
+	objectKey := context.Param("objectKey")
+	versionID := context.Param("versionID")
 
+	resDeleteObject, err := models.DeleteObject(bucketName, objectKey, versionID)
+	if err != nil {
+		context.JSON(http.StatusInternalServerError, gin.H{"message": "could not delete object"})
+		return
+	}
+
+	context.JSON(http.StatusOK, gin.H{"message": "object deleted", "objectResponse": resDeleteObject})
 }

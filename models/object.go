@@ -25,6 +25,8 @@ type ObjectCreateInput struct {
 	FileName string `json:"fileName"`
 }
 
+type ObjectVersionInput []ObjectVersion
+
 // object
 func GetListObjects(bucketName string) (*Response, error) {
 	s3Client := InitS3()
@@ -107,7 +109,7 @@ func PostUploadObject(bucketName string, objectKey string, fileName string) (*Re
 	}, nil
 }
 
-func DeleteObjects(bucketName string, objects []*ObjectVersion) (*Response, error) {
+func DeleteObjects(bucketName string, objects []ObjectVersion) (*Response, error) {
 	s3Client := InitS3()
 
 	var objectIdentifiers []types.ObjectIdentifier
