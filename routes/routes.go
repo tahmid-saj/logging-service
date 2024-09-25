@@ -17,17 +17,17 @@ func RegisterRoutes(server *gin.Engine) {
 	// object
 
 	// ListObjects
-	server.GET("/buckets/:bucketName/objects")
+	server.GET("/buckets/:bucketName/objects", getObjects)
 	// DownloadObject
-	server.POST("/buckets/:bucketName/objects/:objectKey/download")
+	server.POST("/buckets/:bucketName/objects/:objectKey/download", postDownloadObject)
 	// ListObjectVersions
-	server.GET("/buckets/:bucketName/objects/versions")
+	server.GET("/buckets/:bucketName/objects/versions", getListObjectVersions)
 	// UploadObject
-	server.POST("/buckets/:bucketName/objects")
+	server.POST("/buckets/:bucketName/objects", postUploadObject)
 	// DeleteObjects
-	server.POST("/buckets/:bucketName/objects/delete")
+	server.POST("/buckets/:bucketName/objects/delete", deleteObjects)
 	// DeleteObject
-	server.DELETE("/buckets/:bucketName/objects/:objectKey")
+	server.DELETE("/buckets/:bucketName/objects/:objectKey/versions/:versionID", deleteObject)
 
 	// dashboard
 
