@@ -16,6 +16,15 @@ type ObjectVersion struct {
 	VersionID string `json:"versionID"`
 }
 
+type ObjectDownloadInput struct {
+	FileName string `json:"fileName"`
+}
+
+type ObjectCreateInput struct {
+	ObjectKey string `json:"objectKet"`
+	FileName string `json:"fileName"`
+}
+
 // object
 func GetListObjects(bucketName string) (*Response, error) {
 	s3Client := InitS3()
