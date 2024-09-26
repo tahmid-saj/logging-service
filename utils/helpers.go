@@ -2,6 +2,7 @@ package utils
 
 import (
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -60,4 +61,9 @@ func IsTimeBetween(targetTimeStr, startTimeStr, endTimeStr string) (bool, error)
 	}
 
 	return false, nil
+}
+
+// replaces spaces in strings to %20
+func ReplaceSpacesURL(input string) string {
+	return strings.ReplaceAll(input, " ", "%20")
 }
