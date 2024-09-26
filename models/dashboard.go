@@ -8,6 +8,9 @@ import (
 	"logging-service/utils"
 	"os"
 	"strconv"
+
+	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 )
 
 type Log struct {
@@ -21,7 +24,7 @@ type Log struct {
 }
 
 type LogsPaginated struct {
-	Logs []Log
+	Logs []*Log
 	PaginationCursor PaginationCursor
 }
 
@@ -71,8 +74,8 @@ type DashboardInput struct {
 }
 
 type DashboardInputByBucket struct {
-	Skip int `json:"skip"`
-	Limit int `json:"limit"`
+	Skip int64 `json:"skip"`
+	Limit int64 `json:"limit"`
 	StartTime  string `json:"startTime"`
 	EndTime    string `json:"endTime"`
 	HostName   string `json:"hostName"`
@@ -92,11 +95,19 @@ func GetDashboardLogs(dashboardInput *DashboardInput) (*Response, error) {
 		}, err
 	}
 
+	// error checking paginationCursor
+	var resPaginationCursor PaginationCursor
+	if paginationCursor == nil { 
+		resPaginationCursor = PaginationCursor{} 
+	} else { 
+		resPaginationCursor = *paginationCursor 
+	}
+
 	return &Response{
 		Ok: true,
 		Response: &LogsPaginated{
 			Logs: logs,
-			PaginationCursor: *paginationCursor,
+			PaginationCursor: resPaginationCursor,
 		},
 	}, nil
 }
@@ -124,15 +135,66 @@ func GetDashboardLogsAggregated(dashboardInput *DashboardInput) (*Response, erro
 	}, nil
 }
 
-// func GetDashboardLogsByBucket(dashboardInputByBucket *DashboardInputByBucket) (*Response, error) {
+func GetDashboardLogsByBucket(dashboardInputByBucket *DashboardInputByBucket) (*Response, error) {
+	s3Client := InitS3()
 
-// }
+	dashboardInput := &DashboardInput{
+		Skip: int64(dashboardInputByBucket.Skip),
+		Limit: int64(dashboardInputByBucket.Limit),
+		StartTime: dashboardInputByBucket.StartTime,
+		EndTime: dashboardInputByBucket.EndTime,
+		HostName: dashboardInputByBucket.HostName,
+		Method: dashboardInputByBucket.Method,
+		Path: dashboardInputByBucket.Path,
+		Ok: dashboardInputByBucket.Ok,
+	}
+
+	objects, err := object.ListObjects(s3Client, dashboardInputByBucket.BucketName)
+	if err != nil {
+		return &Response{
+			Ok: false,
+			Response: nil,
+		}, err
+	}
+
+	logs, err := getAllLogsInBucket(s3Client, dashboardInput, dashboardInputByBucket.BucketName, objects)
+	if err != nil {
+		return &Response{
+			Ok: false,
+			Response: nil,
+		}, nil
+	}
+
+	paginatedLogs, paginationCursor, err := getLogsPaginated(logs, dashboardInput)
+	if err != nil {
+		return &Response{
+			Ok: false,
+			Response: nil,
+		}, nil
+	}
+
+	// error checking paginationCursor
+	var resPaginationCursor PaginationCursor
+	if paginationCursor == nil { 
+		resPaginationCursor = PaginationCursor{} 
+	} else { 
+		resPaginationCursor = *paginationCursor 
+	}
+
+	return &Response{
+		Ok: true,
+		Response: &LogsPaginated{
+			Logs: paginatedLogs,
+			PaginationCursor: resPaginationCursor,
+		},
+	}, nil
+}
 
 // func GetDashboardLogsAggregatedByBucket(dashboardInputByBucket *DashboardInputByBucket) (*Response, error) {
 
 // }
 
-func getAllLogs(dashboardInput *DashboardInput) ([]Log, *PaginationCursor, error) {
+func getAllLogs(dashboardInput *DashboardInput) ([]*Log, *PaginationCursor, error) {
 	s3Client := InitS3()
 
 	buckets, err := bucket.ListBuckets(s3Client)
@@ -141,9 +203,8 @@ func getAllLogs(dashboardInput *DashboardInput) ([]Log, *PaginationCursor, error
 		return nil, nil, err
 	}
 
-	var logs = []Log{}
+	allBucketsLogs := []*Log{}
 
-	// filtering
 	for _, bucket := range buckets {
 		objects, err := object.ListObjects(s3Client, *bucket.Name)
 		if err != nil {
@@ -151,59 +212,201 @@ func getAllLogs(dashboardInput *DashboardInput) ([]Log, *PaginationCursor, error
 			return nil, nil, err
 		}
 
-		for _, obj := range objects {
-			// read the object rows
-			resRows, err := object.ReadObject(s3Client, *bucket.Name, *obj.Key)
+		currentBucketLogs, err := getAllLogsInBucket(s3Client, dashboardInput, *bucket.Name, objects)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		allBucketsLogs = append(allBucketsLogs, currentBucketLogs...)
+
+		// for _, obj := range objects {
+		// 	// read the object rows
+		// 	resRows, err := object.ReadObject(s3Client, *bucket.Name, *obj.Key)
+		// 	if err != nil {
+		// 		log.Print(err.Error())
+		// 		return nil, nil, err
+		// 	}
+
+		// 	for rowIndex, row := range resRows {
+		// 		if rowIndex == 0 { continue }
+
+		// 		timestamp := row[0]
+		// 		hostName := row[1]
+		// 		method := row[2]
+		// 		path := row[3]
+
+		// 		okParsed, err := strconv.ParseBool(row[4])
+		// 		if err != nil {
+		// 			return nil, nil, err
+		// 		}
+				
+		// 		errorParsed, err := strconv.ParseBool(row[5])
+		// 		if err != nil {
+		// 			return nil, nil, err
+		// 		}
+
+		// 		description := row[6]
+
+		// 		isTimeBetween, err := utils.IsTimeBetween(timestamp, dashboardInput.StartTime, dashboardInput.EndTime)
+		// 		if err != nil {
+		// 			log.Print(err.Error())
+		// 			return nil, nil, err
+		// 		}
+
+		// 		if !isTimeBetween { continue }
+		// 		if dashboardInput.HostName != "" && hostName != dashboardInput.HostName { continue }
+		// 		if dashboardInput.Method != "" && method != dashboardInput.Method { continue }
+		// 		if dashboardInput.Path != "" && path != dashboardInput.Path { continue }
+		// 		if dashboardInput.Ok != "" && row[4] != dashboardInput.Ok { continue }
+				
+		// 		logs = append(logs, Log{
+		// 			Timestamp: timestamp,
+		// 			HostName: hostName,
+		// 			Method: method,
+		// 			Path: path,
+		// 			Ok: okParsed,
+		// 			Error: errorParsed,
+		// 			Description: description,
+		// 		})
+		// 	}
+		// }
+	}
+
+	// // pagination
+	// if dashboardInput.Skip == -1 || dashboardInput.Limit == -1 {
+	// 	return logs, nil, nil
+	// }
+
+	// var startIndex int64
+	// var endIndex int64
+	
+	// if dashboardInput.Skip < int64(len(logs)) && dashboardInput.Skip >= 0 {
+	// 	startIndex = dashboardInput.Skip
+	// } else {
+	// 	startIndex = 0
+	// }
+
+	// if dashboardInput.Skip + dashboardInput.Limit < int64(len(logs)) {
+	// 	endIndex = dashboardInput.Skip + dashboardInput.Limit
+	// } else {
+	// 	endIndex = int64(len(logs))
+	// }
+	// paginatedLogs := logs[startIndex: endIndex]
+
+	// // next and previous cursor
+	// var next *NextCursor
+	// var previous *PreviousCursor
+	
+	// if dashboardInput.Skip + dashboardInput.Limit < int64(len(logs)) {
+	// 	next = &NextCursor{
+	// 		NextSkip: int(dashboardInput.Skip) + int(dashboardInput.Limit),
+	// 		NextLimit: int(dashboardInput.Limit),
+	// 		NextURL: fmt.Sprintf("%v%v?skip=%v&limit=%v&startTime=%v&endTime=%v&hostName=%v&method=%v&path=%v&ok=%v", 
+	// 			os.Getenv("ROOT_API_URL"), 
+	// 			os.Getenv("DASHBOARD_LOGS_PATH"),
+	// 			int(dashboardInput.Skip) + int(dashboardInput.Limit),
+	// 			int(dashboardInput.Limit),
+	// 			utils.ReplaceSpacesURL(dashboardInput.StartTime),
+	// 			utils.ReplaceSpacesURL(dashboardInput.EndTime),
+	// 			dashboardInput.HostName,
+	// 			dashboardInput.Method,
+	// 			dashboardInput.Path,
+	// 			dashboardInput.Ok,
+	// 		),
+	// 	}
+	// } else {
+	// 	next = nil
+	// }
+
+	// if dashboardInput.Skip - dashboardInput.Limit >= 0 {
+	// 	previous = &PreviousCursor{
+	// 		PreviousSkip: int(dashboardInput.Skip) - int(dashboardInput.Limit),
+	// 		PreviousLimit: int(dashboardInput.Limit),
+	// 		PreviousURL: fmt.Sprintf("%v%v?skip=%v&limit=%v&startTime=%v&endTime=%v&hostName=%v&method=%v&path=%v&ok=%v", 
+	// 			os.Getenv("ROOT_API_URL"), 
+	// 			os.Getenv("DASHBOARD_LOGS_PATH"),
+	// 			int(dashboardInput.Skip) - int(dashboardInput.Limit),
+	// 			int(dashboardInput.Limit),
+	// 			utils.ReplaceSpacesURL(dashboardInput.StartTime),
+	// 			utils.ReplaceSpacesURL(dashboardInput.EndTime),
+	// 			dashboardInput.HostName,
+	// 			dashboardInput.Method,
+	// 			dashboardInput.Path,
+	// 			dashboardInput.Ok,
+	// 		),
+	// 	}
+	// } else {
+	// 	previous = nil
+	// }
+
+	paginatedLogs, paginationCursor, err := getLogsPaginated(allBucketsLogs, dashboardInput)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return paginatedLogs, paginationCursor, nil
+}
+
+func getAllLogsInBucket(s3Client *s3.Client, dashboardInput *DashboardInput, bucketName string, objects []types.Object) ([]*Log, error) {
+	logs := []*Log{}
+
+	for _, obj := range objects {
+		// read the object rows
+		resRows, err := object.ReadObject(s3Client, bucketName, *obj.Key)
+		if err != nil {
+			log.Print(err.Error())
+			return nil, err
+		}
+
+		for rowIndex, row := range resRows {
+			if rowIndex == 0 { continue }
+
+			timestamp := row[0]
+			hostName := row[1]
+			method := row[2]
+			path := row[3]
+
+			okParsed, err := strconv.ParseBool(row[4])
+			if err != nil {
+				return nil, err
+			}
+			
+			errorParsed, err := strconv.ParseBool(row[5])
+			if err != nil {
+				return nil, err
+			}
+
+			description := row[6]
+
+			// filtering
+			isTimeBetween, err := utils.IsTimeBetween(timestamp, dashboardInput.StartTime, dashboardInput.EndTime)
 			if err != nil {
 				log.Print(err.Error())
-				return nil, nil, err
+				return nil, err
 			}
 
-			for rowIndex, row := range resRows {
-				if rowIndex == 0 { continue }
-
-				timestamp := row[0]
-				hostName := row[1]
-				method := row[2]
-				path := row[3]
-
-				okParsed, err := strconv.ParseBool(row[4])
-				if err != nil {
-					return nil, nil, err
-				}
-				
-				errorParsed, err := strconv.ParseBool(row[5])
-				if err != nil {
-					return nil, nil, err
-				}
-
-				description := row[6]
-
-				isTimeBetween, err := utils.IsTimeBetween(timestamp, dashboardInput.StartTime, dashboardInput.EndTime)
-				if err != nil {
-					log.Print(err.Error())
-					return nil, nil, err
-				}
-
-				if !isTimeBetween { continue }
-				if dashboardInput.HostName != "" && hostName != dashboardInput.HostName { continue }
-				if dashboardInput.Method != "" && method != dashboardInput.Method { continue }
-				if dashboardInput.Path != "" && path != dashboardInput.Path { continue }
-				if dashboardInput.Ok != "" && row[4] != dashboardInput.Ok { continue }
-				
-				logs = append(logs, Log{
-					Timestamp: timestamp,
-					HostName: hostName,
-					Method: method,
-					Path: path,
-					Ok: okParsed,
-					Error: errorParsed,
-					Description: description,
-				})
-			}
+			if !isTimeBetween { continue }
+			if dashboardInput.HostName != "" && hostName != dashboardInput.HostName { continue }
+			if dashboardInput.Method != "" && method != dashboardInput.Method { continue }
+			if dashboardInput.Path != "" && path != dashboardInput.Path { continue }
+			if dashboardInput.Ok != "" && row[4] != dashboardInput.Ok { continue }
+			
+			logs = append(logs, &Log{
+				Timestamp: timestamp,
+				HostName: hostName,
+				Method: method,
+				Path: path,
+				Ok: okParsed,
+				Error: errorParsed,
+				Description: description,
+			})
 		}
 	}
 
+	return logs, nil
+}
+
+func getLogsPaginated(logs []*Log, dashboardInput *DashboardInput) ([]*Log, *PaginationCursor, error) {
 	// pagination
 	if dashboardInput.Skip == -1 || dashboardInput.Limit == -1 {
 		return logs, nil, nil
@@ -277,7 +480,7 @@ func getAllLogs(dashboardInput *DashboardInput) ([]Log, *PaginationCursor, error
 	}, nil
 }
 
-func getLogsAggregated(logs []Log) (LogAggregated, error) {
+func getLogsAggregated(logs []*Log) (LogAggregated, error) {
 	requests := len(logs)
 	var ok int
 	var errors int
