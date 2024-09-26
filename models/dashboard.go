@@ -6,6 +6,7 @@ import (
 	"logging-service/bucket"
 	"logging-service/object"
 	"logging-service/utils"
+	"os"
 	"strconv"
 )
 
@@ -17,6 +18,28 @@ type Log struct {
 	Ok          bool   `json:"ok"`
 	Error       bool   `json:"error"`
 	Description string `json:"description"`
+}
+
+type LogsPaginated struct {
+	Logs []Log
+	PaginationCursor PaginationCursor
+}
+
+type PaginationCursor struct {
+	Next *NextCursor
+	Previous *PreviousCursor
+}
+
+type NextCursor struct {
+	NextSkip int `json:"nextSkip"`
+	NextLimit int `json:"nextLimit"`
+	NextURL string `json:"nextURL"`
+}
+
+type PreviousCursor struct {
+	PreviousSkip int `json:"previousSkip"`
+	PreviousLimit int `json:"previousLimit"`
+	PreviousURL string `json:"previousURL"`
 }
 
 type LogAggregated struct {
@@ -61,7 +84,7 @@ type DashboardInputByBucket struct {
 
 // dashboard
 func GetDashboardLogs(dashboardInput *DashboardInput) (*Response, error) {
-	logs, err := getAllLogs(dashboardInput)
+	logs, paginationCursor, err := getAllLogs(dashboardInput)
 	if err != nil {
 		return &Response{
 			Ok: false,
@@ -71,12 +94,15 @@ func GetDashboardLogs(dashboardInput *DashboardInput) (*Response, error) {
 
 	return &Response{
 		Ok: true,
-		Response: logs,
+		Response: &LogsPaginated{
+			Logs: logs,
+			PaginationCursor: *paginationCursor,
+		},
 	}, nil
 }
 
 func GetDashboardLogsAggregated(dashboardInput *DashboardInput) (*Response, error) {
-	logs, err := getAllLogs(dashboardInput)
+	logs, _, err := getAllLogs(dashboardInput)
 	if err != nil {
 		return &Response{
 			Ok: false,
@@ -106,13 +132,13 @@ func GetDashboardLogsAggregated(dashboardInput *DashboardInput) (*Response, erro
 
 // }
 
-func getAllLogs(dashboardInput *DashboardInput) ([]Log, error) {
+func getAllLogs(dashboardInput *DashboardInput) ([]Log, *PaginationCursor, error) {
 	s3Client := InitS3()
 
 	buckets, err := bucket.ListBuckets(s3Client)
 	if err != nil {
 		log.Print(err.Error())
-		return nil, err
+		return nil, nil, err
 	}
 
 	var logs = []Log{}
@@ -122,7 +148,7 @@ func getAllLogs(dashboardInput *DashboardInput) ([]Log, error) {
 		objects, err := object.ListObjects(s3Client, *bucket.Name)
 		if err != nil {
 			log.Print(err.Error())
-			return nil, err
+			return nil, nil, err
 		}
 
 		for _, obj := range objects {
@@ -130,7 +156,7 @@ func getAllLogs(dashboardInput *DashboardInput) ([]Log, error) {
 			resRows, err := object.ReadObject(s3Client, *bucket.Name, *obj.Key)
 			if err != nil {
 				log.Print(err.Error())
-				return nil, err
+				return nil, nil, err
 			}
 
 			for rowIndex, row := range resRows {
@@ -143,12 +169,12 @@ func getAllLogs(dashboardInput *DashboardInput) ([]Log, error) {
 
 				okParsed, err := strconv.ParseBool(row[4])
 				if err != nil {
-					return nil, err
+					return nil, nil, err
 				}
 				
 				errorParsed, err := strconv.ParseBool(row[5])
 				if err != nil {
-					return nil, err
+					return nil, nil, err
 				}
 
 				description := row[6]
@@ -156,7 +182,7 @@ func getAllLogs(dashboardInput *DashboardInput) ([]Log, error) {
 				isTimeBetween, err := utils.IsTimeBetween(timestamp, dashboardInput.StartTime, dashboardInput.EndTime)
 				if err != nil {
 					log.Print(err.Error())
-					return nil, err
+					return nil, nil, err
 				}
 
 				if !isTimeBetween { continue }
@@ -180,7 +206,7 @@ func getAllLogs(dashboardInput *DashboardInput) ([]Log, error) {
 
 	// pagination
 	if dashboardInput.Skip == -1 || dashboardInput.Limit == -1 {
-		return logs, nil
+		return logs, nil, nil
 	}
 
 	var startIndex int64
@@ -197,9 +223,58 @@ func getAllLogs(dashboardInput *DashboardInput) ([]Log, error) {
 	} else {
 		endIndex = int64(len(logs))
 	}
-	paginatedLogs := logs[startIndex: endIndex + 1]
+	paginatedLogs := logs[startIndex: endIndex]
 
-	return paginatedLogs, nil
+	// next and previous cursor
+	var next *NextCursor
+	var previous *PreviousCursor
+	
+	if dashboardInput.Skip + dashboardInput.Limit < int64(len(logs)) {
+		next = &NextCursor{
+			NextSkip: int(dashboardInput.Skip) + int(dashboardInput.Limit),
+			NextLimit: int(dashboardInput.Limit),
+			NextURL: fmt.Sprintf("%v%v?skip=%v&limit=%v&startTime=%v&endTime=%v&hostName=%v&method=%v&path=%v&ok=%v", 
+				os.Getenv("ROOT_API_URL"), 
+				os.Getenv("DASHBOARD_LOGS_PATH"),
+				int(dashboardInput.Skip) + int(dashboardInput.Limit),
+				int(dashboardInput.Limit),
+				utils.ReplaceSpacesURL(dashboardInput.StartTime),
+				utils.ReplaceSpacesURL(dashboardInput.EndTime),
+				dashboardInput.HostName,
+				dashboardInput.Method,
+				dashboardInput.Path,
+				dashboardInput.Ok,
+			),
+		}
+	} else {
+		next = nil
+	}
+
+	if dashboardInput.Skip - dashboardInput.Limit >= 0 {
+		previous = &PreviousCursor{
+			PreviousSkip: int(dashboardInput.Skip) - int(dashboardInput.Limit),
+			PreviousLimit: int(dashboardInput.Limit),
+			PreviousURL: fmt.Sprintf("%v%v?skip=%v&limit=%v&startTime=%v&endTime=%v&hostName=%v&method=%v&path=%v&ok=%v", 
+				os.Getenv("ROOT_API_URL"), 
+				os.Getenv("DASHBOARD_LOGS_PATH"),
+				int(dashboardInput.Skip) - int(dashboardInput.Limit),
+				int(dashboardInput.Limit),
+				utils.ReplaceSpacesURL(dashboardInput.StartTime),
+				utils.ReplaceSpacesURL(dashboardInput.EndTime),
+				dashboardInput.HostName,
+				dashboardInput.Method,
+				dashboardInput.Path,
+				dashboardInput.Ok,
+			),
+		}
+	} else {
+		previous = nil
+	}
+
+	return paginatedLogs, &PaginationCursor{
+		Next: next,
+		Previous: previous,
+	}, nil
 }
 
 func getLogsAggregated(logs []Log) (LogAggregated, error) {
