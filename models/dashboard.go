@@ -1,6 +1,7 @@
 package models
 
 import (
+	"fmt"
 	"log"
 	"logging-service/bucket"
 	"logging-service/object"
@@ -23,10 +24,17 @@ type LogAggregated struct {
 	Ok int `json:"ok"`
 	Errors int `json:"errors"`
 	RequestsView RequestView `json:"requestsView"`
+	AggregatedTable []string `json:"aggregatedTable"`
 }
 
 // hostname maps to method, then maps to path, then maps to the number of requests (int)
-type RequestView map[string]map[string]map[string]int
+type RequestView map[string]map[string]map[string]RequestTotals
+
+type RequestTotals struct {
+	Requests int
+	Ok int
+	Errors int
+}
 
 type DashboardInput struct {
 	Skip int64 `json:"skip"`
@@ -153,7 +161,7 @@ func getAllLogs(dashboardInput *DashboardInput) ([]Log, error) {
 
 				if !isTimeBetween { continue }
 				if dashboardInput.HostName != "" && hostName != dashboardInput.HostName { continue }
-				if dashboardInput.Method != "" && method != dashboardInput.HostName { continue }
+				if dashboardInput.Method != "" && method != dashboardInput.Method { continue }
 				if dashboardInput.Path != "" && path != dashboardInput.Path { continue }
 				if dashboardInput.Ok != "" && row[4] != dashboardInput.Ok { continue }
 				
@@ -175,8 +183,20 @@ func getAllLogs(dashboardInput *DashboardInput) ([]Log, error) {
 		return logs, nil
 	}
 
-	startIndex := dashboardInput.Skip
-	endIndex := dashboardInput.Skip + dashboardInput.Limit
+	var startIndex int64
+	var endIndex int64
+	
+	if dashboardInput.Skip < int64(len(logs)) && dashboardInput.Skip >= 0 {
+		startIndex = dashboardInput.Skip
+	} else {
+		startIndex = 0
+	}
+
+	if dashboardInput.Skip + dashboardInput.Limit < int64(len(logs)) {
+		endIndex = dashboardInput.Skip + dashboardInput.Limit
+	} else {
+		endIndex = int64(len(logs))
+	}
 	paginatedLogs := logs[startIndex: endIndex + 1]
 
 	return paginatedLogs, nil
@@ -186,7 +206,9 @@ func getLogsAggregated(logs []Log) (LogAggregated, error) {
 	requests := len(logs)
 	var ok int
 	var errors int
-	var requestsView RequestView
+
+	// RequestsView type
+	requestsView := make(map[string]map[string]map[string]RequestTotals)
 
 	for _, log := range logs {
 		if log.Ok { ok++ }
@@ -194,22 +216,44 @@ func getLogsAggregated(logs []Log) (LogAggregated, error) {
 
 		// initialize the hostname map if it's nil
 		if _, exists := requestsView[log.HostName]; !exists {
-			requestsView[log.HostName] = make(map[string]map[string]int)
+			requestsView[log.HostName] = make(map[string]map[string]RequestTotals)
 		}
 
 		// initialize the method map if it's nil
 		if _, exists := requestsView[log.HostName][log.Method]; !exists {
-			requestsView[log.HostName][log.Method] = make(map[string]int)
+			requestsView[log.HostName][log.Method] = make(map[string]RequestTotals)
 		}
 
-		// increment the count for the given path
-		requestsView[log.HostName][log.Method][log.Path]++
+		// increment the count for the given path and request total
+		requestTotals := requestsView[log.HostName][log.Method][log.Path]
+
+		requestTotals.Requests++
+		if log.Ok { requestTotals.Ok++ }
+		if log.Error { requestTotals.Errors++ }
+
+		requestsView[log.HostName][log.Method][log.Path] = requestTotals
 	}
+
+	aggregatedTable := getLogsAggregatedTable(requestsView)
 
 	return LogAggregated{
 		Requests: requests,
 		Ok: ok,
 		Errors: errors,
 		RequestsView: requestsView,
+		AggregatedTable: aggregatedTable,
 	}, nil
+}
+
+func getLogsAggregatedTable(requestsView RequestView) (aggregatedTable []string) {
+	for hostName, methodMap := range requestsView {
+		for method, pathMap := range methodMap {
+			for path, totals := range pathMap {
+				aggregatedTable = append(aggregatedTable, fmt.Sprintf("Host: %s, Method: %s, Path: %s, Requests: %d, Ok: %d, Errors: %d", 
+					hostName, method, path, totals.Requests, totals.Ok, totals.Errors))
+			}
+		}
+	}
+
+	return aggregatedTable
 }
