@@ -139,6 +139,33 @@ func getDashboardLogsByBucket(context *gin.Context) {
 	context.JSON(http.StatusOK, resGetDashboardLogsByBucket)
 }
 
-func getDashboardLogsAggregatedByBucket(gin *gin.Context) {
+func getDashboardLogsAggregatedByBucket(context *gin.Context) {
+	bucketName := context.Param("bucketName")
 
+	startTime := context.Query("startTime")
+	endTime := context.Query("endTime")
+	hostName := context.Query("hostName")
+	method := context.Query("method")
+	path := context.Query("path")
+	ok := context.Query("ok")
+
+	dashboardInputByBucket := &models.DashboardInputByBucket{
+		Skip: -1,
+		Limit: -1,
+		StartTime: startTime,
+		EndTime: endTime,
+		HostName: hostName,
+		Method: method,
+		Path: path,
+		Ok: ok,
+		BucketName: bucketName,
+	}
+
+	resGetDashboardLogsAggregatedByBucket, err := models.GetDashboardLogsAggregatedByBucket(dashboardInputByBucket)
+	if err != nil {
+		context.JSON(http.StatusInternalServerError, gin.H{"message": "could not fetch logs"})
+		return
+	}
+
+	context.JSON(http.StatusOK, resGetDashboardLogsAggregatedByBucket)
 }
