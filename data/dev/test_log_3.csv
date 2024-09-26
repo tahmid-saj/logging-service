@@ -1,2 +1,2 @@
 timestamp,hostname,method,path,ok,error,desc
-1,2,3,4,5,6,7
+2006-01-02 15:04:05,chatsigma.io,GET,/chat,true,false,
