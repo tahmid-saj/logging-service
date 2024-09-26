@@ -35,7 +35,7 @@ func RegisterRoutes(server *gin.Engine) {
 	server.GET("/dashboard-logs", getDashboardLogs) // query params: skip, limit, start_time, end_time, hostname, method, path, ok
 	// aggregated dashboard summary (counts / metrics) of logs
 	server.GET("/dashboard-logs/aggregated", getDashboardLogsAggregated) // query params: skip, limit, start_time, end_time, hostname, method, path, ok
-	server.GET("/dashboard-logs/:bucketName") // query params: skip, limit, start_time, end_time, hostname, method, path, ok
+	server.GET("/dashboard-logs/:bucketName", getDashboardLogsByBucket) // query params: skip, limit, start_time, end_time, hostname, method, path, ok
 	// aggregated dashboard summary (counts / metrics) of logs
 	server.GET("/dashboard-logs/aggregated/:bucketName") // query params: skip, limit, start_time, end_time, hostname, method, path, ok
 }
