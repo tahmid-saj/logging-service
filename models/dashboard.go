@@ -29,8 +29,8 @@ type LogAggregated struct {
 type RequestView map[string]map[string]map[string]int
 
 type DashboardInput struct {
-	Skip int `json:"skip"`
-	Limit int `json:"limit"`
+	Skip int64 `json:"skip"`
+	Limit int64 `json:"limit"`
 	StartTime string `json:"startTime"`
 	EndTime   string `json:"endTime"`
 	HostName  string `json:"hostName"`
