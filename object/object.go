@@ -1,10 +1,13 @@
 package object
 
 import (
+	"bytes"
 	"context"
+	"encoding/csv"
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"logging-service/utils"
 	"os"
@@ -62,6 +65,35 @@ func DownloadObject(s3Client *s3.Client, bucketName string, objectKey string, fi
 	_, err = file.Write(body)
 
 	return err
+}
+
+func ReadObject(s3Client *s3.Client, bucketName string, objectKey string) ([][]string, error) {
+	readRequestInput := &s3.GetObjectInput{
+		Bucket: aws.String(bucketName),
+		Key: aws.String(objectKey),
+	}
+
+	result, err := s3Client.GetObject(context.TODO(), readRequestInput)
+	if err != nil {
+		log.Print(err)
+	}
+
+	defer result.Body.Close()
+
+	body, err := ioutil.ReadAll(result.Body)
+	if err != nil {
+		log.Printf("Couldn't read object %v. %v.\n", objectKey, err)
+		return nil, err
+	}
+
+	reader := csv.NewReader(bytes.NewBuffer(body))
+	rows, err := reader.ReadAll()
+	if err != nil {
+		log.Printf("Couldn't read object %v. %v.\n", objectKey, err)
+		return nil, err
+	}
+
+	return rows, nil
 }
 
 func ListObjectVersions(s3Client *s3.Client, bucketName string) ([]types.ObjectVersion, error) {
