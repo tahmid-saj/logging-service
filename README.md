@@ -9,7 +9,31 @@ Logging service API for log management in S3 from different frontends / APIs / d
 
 The directory structure is as follows:
 
+## Directory Structure
 
+- **bucket/**  
+  - Handles interactions with AWS S3 buckets for log storage.
+
+- **conf/**  
+  - Configuration files for the service.
+
+- **data/**  
+  - Contains example or sample log data.
+
+- **models/**  
+  - Data models for logging records and configurations.
+
+- **object/**  
+  - Manages S3 object operations such as upload and retrieval.
+
+- **routes/**  
+  - Defines API routes using the Gin framework.
+
+- **utils/**  
+  - Utility functions for log processing and S3 interactions.
+
+- **main.go**  
+  - Entry point for the logging service.
 
 <br/>
 <br/>
