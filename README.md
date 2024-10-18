@@ -9,8 +9,6 @@ Logging service API for log management in S3 from different frontends / APIs / d
 
 The directory structure is as follows:
 
-## Directory Structure
-
 - **bucket/**  
   - Handles interactions with AWS S3 buckets for log storage.
 
